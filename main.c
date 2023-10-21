@@ -1,4 +1,6 @@
 #include <gtk/gtk.h>
+#include <stdlib.h>
+#include <time.h>
 
 typedef struct {
     int process_id;
@@ -20,10 +22,9 @@ void clear_processes() {
 void reset_processes() {
     memset(processes, 0, sizeof(processes));
     num_processes = 0;
-      GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Processes have been reset.");
+    GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Processes have been reset.");
     gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
-
 }
 
 void display_message_dialog(const char *message) {
@@ -47,10 +48,9 @@ void display_scheduling_result(const char *result) {
     gtk_widget_destroy(dialog);
 
     if (response == GTK_RESPONSE_OK) {
-        reset_processes();  
+        reset_processes();
     }
 }
-
 
 void sort_by_burst_time() {
     for (int i = 0; i < num_processes - 1; i++) {
@@ -64,9 +64,44 @@ void sort_by_burst_time() {
     }
 }
 
+void lottery_schedule() {
+    int total_tickets = 0;
+
+    // Calculate the total number of tickets based on process priorities.
+    for (int i = 0; i < num_processes; i++) {
+        total_tickets += processes[i].priority;
+    }
+
+    // Generate a random ticket within the range of total_tickets.
+    srand(time(NULL));
+    int winning_ticket = rand() % total_tickets;
+
+    int selected_process = -1;
+    int current_tickets = 0;
+
+    // Find the process corresponding to the winning ticket.
+    for (int i = 0; i < num_processes; i++) {
+        current_tickets += processes[i].priority;
+        if (winning_ticket < current_tickets) {
+            selected_process = i;
+            break;
+        }
+    }
+
+    if (selected_process != -1) {
+        // Execute the selected process.
+        processes[selected_process].completion_time = processes[selected_process].burst_time;
+        display_scheduling_result("Lottery Scheduling Complete");
+        reset_processes();
+    } else {
+        display_message_dialog("No process selected.");
+    }
+    reset_processes();
+}
+
+
 void sjn_schedule() {
     sort_by_burst_time();
-
 
     int current_time = 0;
     int completed = 0;
@@ -94,12 +129,40 @@ void sjn_schedule() {
     }
 
     display_scheduling_result("SJN Scheduling Complete");
-     reset_processes();
+    reset_processes();
+}
+
+void ljf_schedule() {
+    int current_time = 0;
+    int completed = 0;
+
+    while (completed < num_processes) {
+        int next_process = -1;
+        int max_burst_time = INT_MIN;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (processes[i].arrival_time <= current_time && processes[i].completion_time == 0) {
+                if (processes[i].burst_time > max_burst_time) {
+                    max_burst_time = processes[i].burst_time;
+                    next_process = i;
+                }
+            }
+        }
+
+        if (next_process != -1) {
+            processes[next_process].completion_time = current_time + processes[next_process].burst_time;
+            current_time = processes[next_process].completion_time;
+            completed++;
+        } else {
+            current_time++;
+        }
+    }
+
+    display_scheduling_result("LJF Scheduling Complete");
+    reset_processes();
 }
 
 void fcfs_schedule() {
-   
-
     int current_time = 0;
     int completed = 0;
 
@@ -123,11 +186,10 @@ void fcfs_schedule() {
     }
 
     display_scheduling_result("FCFS Scheduling Complete");
-     reset_processes();
+    reset_processes();
 }
 
 void priority_schedule() {
-    
     int current_time = 0;
     int completed = 0;
 
@@ -152,9 +214,9 @@ void priority_schedule() {
             current_time++;
         }
     }
-    
+
     display_scheduling_result("Priority Scheduling Complete");
-     reset_processes();
+    reset_processes();
 }
 
 void round_robin_schedule(int time_quantum) {
@@ -186,7 +248,7 @@ void round_robin_schedule(int time_quantum) {
     }
 
     display_scheduling_result("Round Robin Scheduling Complete");
-     reset_processes();
+    reset_processes();
 }
 
 void on_run_sjn_clicked(GtkButton *button, gpointer user_data) {
@@ -204,6 +266,14 @@ void on_run_priority_clicked(GtkButton *button, gpointer user_data) {
 void on_run_round_robin_clicked(GtkButton *button, gpointer user_data) {
     int time_quantum = 1;
     round_robin_schedule(time_quantum);
+}
+
+void on_run_ljf_clicked(GtkButton *button, gpointer user_data) {
+    ljf_schedule();
+}
+
+void on_run_lottery_clicked(GtkButton *button, gpointer user_data) {
+    lottery_schedule();
 }
 
 void on_run_clicked(GtkButton *button, gpointer user_data) {
@@ -240,7 +310,7 @@ int main(int argc, char *argv[]) {
     GtkWidget *vbox;
     GtkWidget *label;
     GtkWidget *button_box;
-    GtkWidget *run_sjn_button, *run_fcfs_button, *run_priority_button, *run_rr_button;
+    GtkWidget *run_sjn_button, *run_fcfs_button, *run_priority_button, *run_rr_button, *run_ljf_button, *run_lottery_button;
     GtkWidget *add_process_button;
     GtkWidget *reset_button;
     GtkWidget *burst_label, *arrival_label, *priority_label;
@@ -292,6 +362,10 @@ int main(int argc, char *argv[]) {
     run_sjn_button = gtk_button_new_with_label("Run SJN");
     g_signal_connect(run_sjn_button, "clicked", G_CALLBACK(on_run_sjn_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(button_box), run_sjn_button, FALSE, FALSE, 0);
+    
+    run_ljf_button = gtk_button_new_with_label("Run LJF");
+    g_signal_connect(run_ljf_button, "clicked", G_CALLBACK(on_run_ljf_clicked), NULL);
+    gtk_box_pack_start(GTK_BOX(button_box), run_ljf_button, FALSE, FALSE, 0);
 
     run_fcfs_button = gtk_button_new_with_label("Run FCFS");
     g_signal_connect(run_fcfs_button, "clicked", G_CALLBACK(on_run_fcfs_clicked), NULL);
@@ -305,10 +379,15 @@ int main(int argc, char *argv[]) {
     g_signal_connect(run_rr_button, "clicked", G_CALLBACK(on_run_round_robin_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(button_box), run_rr_button, FALSE, FALSE, 0);
 
+    run_lottery_button = gtk_button_new_with_label("Run Lottery");
+    g_signal_connect(run_lottery_button, "clicked", G_CALLBACK(on_run_lottery_clicked), NULL);
+    gtk_box_pack_start(GTK_BOX(button_box), run_lottery_button, FALSE, FALSE, 0);
+
     gtk_widget_show_all(window);
     gtk_main();
 
     return 0;
 }
 
-// gcc `pkg-config --cflags gtk+-3.0` -o new  main.c `pkg-config --libs gtk+-3.0` 
+// Compile using:
+// gcc `pkg-config --cflags gtk+-3.0` -o scheduling main.c `pkg-config --libs gtk+-3.0`
