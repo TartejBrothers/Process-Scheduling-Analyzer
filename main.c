@@ -11,11 +11,21 @@ typedef struct {
 Process processes[10];
 int num_processes = 0;
 
-GtkWidget *burst_entry, *arrival_entry;
-void reset_processes() {
+GtkWidget *burst_entry, *arrival_entry, *priority_entry;
+
+void clear_processes() {
     num_processes = 0;
-    memset(processes, 0, sizeof(processes));
 }
+
+void reset_processes() {
+    memset(processes, 0, sizeof(processes));
+    num_processes = 0;
+      GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Processes have been reset.");
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+
+}
+
 void display_message_dialog(const char *message) {
     GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "%s", message);
     gtk_dialog_run(GTK_DIALOG(dialog));
@@ -32,8 +42,15 @@ void display_scheduling_result(const char *result) {
         strcat(result_message, process_info);
     }
 
-    display_message_dialog(result_message);
+    GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK_CANCEL, "%s", result_message);
+    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+
+    if (response == GTK_RESPONSE_OK) {
+        reset_processes();  
+    }
 }
+
 
 void sort_by_burst_time() {
     for (int i = 0; i < num_processes - 1; i++) {
@@ -48,65 +65,101 @@ void sort_by_burst_time() {
 }
 
 void sjn_schedule() {
-     
     sort_by_burst_time();
+
+
     int current_time = 0;
-    for (int i = 0; i < num_processes; i++) {
-        if (current_time < processes[i].arrival_time) {
-            current_time = processes[i].arrival_time;
+    int completed = 0;
+
+    while (completed < num_processes) {
+        int next_process = -1;
+        int min_burst_time = INT_MAX;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (processes[i].arrival_time <= current_time && processes[i].completion_time == 0) {
+                if (processes[i].burst_time < min_burst_time) {
+                    min_burst_time = processes[i].burst_time;
+                    next_process = i;
+                }
+            }
         }
-        processes[i].completion_time = current_time + processes[i].burst_time;
-        current_time = processes[i].completion_time;
+
+        if (next_process != -1) {
+            processes[next_process].completion_time = current_time + processes[next_process].burst_time;
+            current_time = processes[next_process].completion_time;
+            completed++;
+        } else {
+            current_time++;
+        }
     }
 
     display_scheduling_result("SJN Scheduling Complete");
-    reset_processes();
-}
-
-void fcfs_schedule() {
-
-    int current_time = 0;
-    for (int i = 0; i < num_processes; i++) {
-        if (current_time < processes[i].arrival_time) {
-            current_time = processes[i].arrival_time;
-        }
-        processes[i].completion_time = current_time + processes[i].burst_time;
-        current_time = processes[i].completion_time;
-    }
-
-    display_scheduling_result("FCFS Scheduling Complete");
-
      reset_processes();
 }
 
-void sort_by_priority() {
-    for (int i = 0; i < num_processes - 1; i++) {
-        for (int j = i + 1; j < num_processes; j++) {
-            if (processes[i].priority > processes[j].priority) {
-                Process temp = processes[i];
-                processes[i] = processes[j];
-                processes[j] = temp;
+void fcfs_schedule() {
+   
+
+    int current_time = 0;
+    int completed = 0;
+
+    while (completed < num_processes) {
+        int next_process = -1;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (processes[i].arrival_time <= current_time && processes[i].completion_time == 0) {
+                next_process = i;
+                break;
             }
         }
+
+        if (next_process != -1) {
+            processes[next_process].completion_time = current_time + processes[next_process].burst_time;
+            current_time = processes[next_process].completion_time;
+            completed++;
+        } else {
+            current_time++;
+        }
     }
+
+    display_scheduling_result("FCFS Scheduling Complete");
+     reset_processes();
 }
 
 void priority_schedule() {
-
-    sort_by_priority();
+    
     int current_time = 0;
-    for (int i = 0; i < num_processes; i++) {
-        if (current_time < processes[i].arrival_time) {
-            current_time = processes[i].arrival_time;
+    int completed = 0;
+
+    while (completed < num_processes) {
+        int next_process = -1;
+        int max_priority = INT_MIN;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (processes[i].arrival_time <= current_time && processes[i].completion_time == 0) {
+                if (processes[i].priority > max_priority) {
+                    max_priority = processes[i].priority;
+                    next_process = i;
+                }
+            }
         }
-        processes[i].completion_time = current_time + processes[i].burst_time;
-        current_time = processes[i].completion_time;
+
+        if (next_process != -1) {
+            processes[next_process].completion_time = current_time + processes[next_process].burst_time;
+            current_time = processes[next_process].completion_time;
+            completed++;
+        } else {
+            current_time++;
+        }
     }
+    
     display_scheduling_result("Priority Scheduling Complete");
-    reset_processes();
+     reset_processes();
 }
 
 void round_robin_schedule(int time_quantum) {
+    reset_processes();
+
     int current_time = 0;
     int remaining_burst[10];
 
@@ -133,6 +186,7 @@ void round_robin_schedule(int time_quantum) {
     }
 
     display_scheduling_result("Round Robin Scheduling Complete");
+     reset_processes();
 }
 
 void on_run_sjn_clicked(GtkButton *button, gpointer user_data) {
@@ -155,17 +209,30 @@ void on_run_round_robin_clicked(GtkButton *button, gpointer user_data) {
 void on_run_clicked(GtkButton *button, gpointer user_data) {
     int burst_time = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(burst_entry));
     int arrival_time = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(arrival_entry));
+    int priority = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(priority_entry));
 
     Process new_process;
     new_process.process_id = num_processes + 1;
     new_process.burst_time = burst_time;
     new_process.arrival_time = arrival_time;
+    new_process.priority = priority;
     new_process.completion_time = 0;
     processes[num_processes++] = new_process;
 
     gchar process_details[128];
-    g_snprintf(process_details, sizeof(process_details), "Process ID: %d\nArrival Time: %d\nBurst Time: %d", new_process.process_id, new_process.arrival_time, new_process.burst_time);
+    g_snprintf(process_details, sizeof(process_details), "Process ID: %d\nArrival Time: %d\nBurst Time: %d\nPriority: %d", new_process.process_id, new_process.arrival_time, new_process.burst_time, new_process.priority);
     display_message_dialog(process_details);
+}
+
+void on_reset_clicked(GtkButton *button, gpointer user_data) {
+    GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, "Reset processes and clear existing data?");
+    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+
+    if (response == GTK_RESPONSE_OK) {
+        clear_processes();
+        display_message_dialog("Processes cleared. You can now add new processes.");
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -175,18 +242,19 @@ int main(int argc, char *argv[]) {
     GtkWidget *button_box;
     GtkWidget *run_sjn_button, *run_fcfs_button, *run_priority_button, *run_rr_button;
     GtkWidget *add_process_button;
-    GtkWidget *burst_label, *arrival_label;
-    GtkWidget *burst_spin, *arrival_spin;
+    GtkWidget *reset_button;
+    GtkWidget *burst_label, *arrival_label, *priority_label;
+    GtkWidget *burst_spin, *arrival_spin, *priority_spin;
 
     gtk_init(&argc, &argv);
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-    vbox = gtk_vbox_new(TRUE, 5);
+    vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_add(GTK_CONTAINER(window), vbox);
 
-    label = gtk_label_new("Enter Process Arrival Time and Burst Time:");
+    label = gtk_label_new("Enter Process Arrival Time, Burst Time, and Priority:");
     gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, FALSE, 0);
 
     burst_label = gtk_label_new("Burst Time:");
@@ -203,9 +271,20 @@ int main(int argc, char *argv[]) {
     gtk_box_pack_start(GTK_BOX(vbox), arrival_spin, FALSE, FALSE, 0);
     arrival_entry = arrival_spin;
 
+    priority_label = gtk_label_new("Priority:");
+    gtk_box_pack_start(GTK_BOX(vbox), priority_label, FALSE, FALSE, 0);
+
+    priority_spin = gtk_spin_button_new_with_range(0, 10, 1);
+    gtk_box_pack_start(GTK_BOX(vbox), priority_spin, FALSE, FALSE, 0);
+    priority_entry = priority_spin;
+
     add_process_button = gtk_button_new_with_label("Add Process");
     g_signal_connect(add_process_button, "clicked", G_CALLBACK(on_run_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(vbox), add_process_button, FALSE, FALSE, 0);
+
+    reset_button = gtk_button_new_with_label("Reset Processes");
+    g_signal_connect(reset_button, "clicked", G_CALLBACK(on_reset_clicked), NULL);
+    gtk_box_pack_start(GTK_BOX(vbox), reset_button, FALSE, FALSE, 0);
 
     button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 0);
@@ -231,4 +310,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-// gcc `pkg-config --cflags gtk+-3.0` -o new  main.c `pkg-config --libs gtk+-3.0`    
+
+// gcc `pkg-config --cflags gtk+-3.0` -o new  main.c `pkg-config --libs gtk+-3.0` 
