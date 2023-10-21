@@ -12,24 +12,28 @@ Process processes[10];
 int num_processes = 0;
 
 GtkWidget *burst_entry, *arrival_entry;
-
-
+void reset_processes() {
+    num_processes = 0;
+    memset(processes, 0, sizeof(processes));
+}
 void display_message_dialog(const char *message) {
-    GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, message);
+    GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "%s", message);
     gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
 }
 
-
 void display_scheduling_result(const char *result) {
-    GtkWidget *result_dialog = gtk_dialog_new_with_buttons("Scheduling Result", NULL, GTK_DIALOG_MODAL, GTK_STOCK_OK, GTK_RESPONSE_ACCEPT, NULL);
-    GtkWidget *result_label = gtk_label_new(result);
-    gtk_container_add(GTK_CONTAINER(GTK_DIALOG(result_dialog)->vbox), result_label);
-    gtk_widget_show_all(result_dialog);
-    gtk_dialog_run(GTK_DIALOG(result_dialog));
-    gtk_widget_destroy(result_dialog);
-}
+    gchar result_message[512];
+    g_snprintf(result_message, sizeof(result_message), "%s\n\nScheduling Order:\n", result);
 
+    for (int i = 0; i < num_processes; i++) {
+        gchar process_info[128];
+        g_snprintf(process_info, sizeof(process_info), "Process ID: %d, Completion Time: %d\n", processes[i].process_id, processes[i].completion_time);
+        strcat(result_message, process_info);
+    }
+
+    display_message_dialog(result_message);
+}
 
 void sort_by_burst_time() {
     for (int i = 0; i < num_processes - 1; i++) {
@@ -43,8 +47,8 @@ void sort_by_burst_time() {
     }
 }
 
-
 void sjn_schedule() {
+     
     sort_by_burst_time();
     int current_time = 0;
     for (int i = 0; i < num_processes; i++) {
@@ -56,10 +60,11 @@ void sjn_schedule() {
     }
 
     display_scheduling_result("SJN Scheduling Complete");
+    reset_processes();
 }
 
-
 void fcfs_schedule() {
+
     int current_time = 0;
     for (int i = 0; i < num_processes; i++) {
         if (current_time < processes[i].arrival_time) {
@@ -70,8 +75,9 @@ void fcfs_schedule() {
     }
 
     display_scheduling_result("FCFS Scheduling Complete");
-}
 
+     reset_processes();
+}
 
 void sort_by_priority() {
     for (int i = 0; i < num_processes - 1; i++) {
@@ -85,8 +91,8 @@ void sort_by_priority() {
     }
 }
 
-
 void priority_schedule() {
+
     sort_by_priority();
     int current_time = 0;
     for (int i = 0; i < num_processes; i++) {
@@ -97,7 +103,9 @@ void priority_schedule() {
         current_time = processes[i].completion_time;
     }
     display_scheduling_result("Priority Scheduling Complete");
+    reset_processes();
 }
+
 void round_robin_schedule(int time_quantum) {
     int current_time = 0;
     int remaining_burst[10];
@@ -106,8 +114,9 @@ void round_robin_schedule(int time_quantum) {
         remaining_burst[i] = processes[i].burst_time;
     }
 
-    while (1) {
-        int done = 1;
+    int done = 0;
+    while (!done) {
+        done = 1;
         for (int i = 0; i < num_processes; i++) {
             if (remaining_burst[i] > 0) {
                 done = 0;
@@ -121,35 +130,27 @@ void round_robin_schedule(int time_quantum) {
                 }
             }
         }
-        if (done) {
-            break;
-        }
     }
 
     display_scheduling_result("Round Robin Scheduling Complete");
 }
 
-
 void on_run_sjn_clicked(GtkButton *button, gpointer user_data) {
     sjn_schedule();
 }
-
 
 void on_run_fcfs_clicked(GtkButton *button, gpointer user_data) {
     fcfs_schedule();
 }
 
-
 void on_run_priority_clicked(GtkButton *button, gpointer user_data) {
     priority_schedule();
 }
 
-
 void on_run_round_robin_clicked(GtkButton *button, gpointer user_data) {
-    int time_quantum = 1; 
+    int time_quantum = 1;
     round_robin_schedule(time_quantum);
 }
-
 
 void on_run_clicked(GtkButton *button, gpointer user_data) {
     int burst_time = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(burst_entry));
@@ -206,7 +207,7 @@ int main(int argc, char *argv[]) {
     g_signal_connect(add_process_button, "clicked", G_CALLBACK(on_run_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(vbox), add_process_button, FALSE, FALSE, 0);
 
-    button_box = gtk_hbox_new(TRUE, 5);
+    button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 0);
 
     run_sjn_button = gtk_button_new_with_label("Run SJN");
@@ -226,10 +227,8 @@ int main(int argc, char *argv[]) {
     gtk_box_pack_start(GTK_BOX(button_box), run_rr_button, FALSE, FALSE, 0);
 
     gtk_widget_show_all(window);
-
     gtk_main();
 
     return 0;
 }
-
-//  gcc `pkg-config --cflags gtk+-3.0` -o main main.c `pkg-config --libs gtk+-3.0`
+// gcc `pkg-config --cflags gtk+-3.0` -o new  main.c `pkg-config --libs gtk+-3.0`    
