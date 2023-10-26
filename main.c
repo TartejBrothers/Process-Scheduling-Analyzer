@@ -12,8 +12,10 @@ typedef struct {
 
 Process processes[10];
 int num_processes = 0;
+GtkWidget *burst_entry;
+GtkWidget *arrival_entry;
+GtkWidget *priority_entry;
 
-GtkWidget *burst_entry, *arrival_entry, *priority_entry;
 
 void clear_processes() {
     num_processes = 0;
@@ -315,6 +317,10 @@ int main(int argc, char *argv[]) {
     GtkWidget *reset_button;
     GtkWidget *burst_label, *arrival_label, *priority_label;
     GtkWidget *burst_spin, *arrival_spin, *priority_spin;
+
+    burst_entry = burst_spin;
+    arrival_entry = arrival_spin;
+    priority_entry = priority_spin;
 
     gtk_init(&argc, &argv);
 
